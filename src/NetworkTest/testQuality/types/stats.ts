@@ -40,3 +40,31 @@ export interface AverageStatsBase {
   bitrate: number;
   packetLossRatio: number;
 }
+
+export interface DetailedPublisherStats {
+  videoStats: {
+    qualityLimitationReason: any;
+    resolution: string;
+    framerate: number;
+    active: boolean;
+    pliCount: number;
+    nackCount: number;
+    kbs: number;
+    ssrc: number;
+    byteSent: number | undefined;
+    currentTimestamp: number;
+  }[];
+  audioStats: {
+    kbs: number;
+    ssrc: number;
+    byteSent: number | undefined;
+    currentTimestamp: number;
+  }[];
+  availableOutgoingBitrate: number;
+  videoByteSent: number;
+  videoKbsSent: number;
+  simulcastEnabled: boolean;
+  transportProtocol: string;
+  currentRoundTripTime: number;
+  timestamp: number;
+}

@@ -15,7 +15,7 @@ export enum FailureType {
   OpentokJs = 'OpenTok.js',
   Media = 'media',
   Logging = 'logging',
-  ConnectivityError = 'OpenTok.js',
+  ConnectivityError = 'connectivityError',
 }
 
 export type FailureCase = {

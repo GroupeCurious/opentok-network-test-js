@@ -7,7 +7,7 @@
  */
 
 import { get } from '../util';
-import { OTError } from '../types/opentok/error';
+import type { OTError } from '@opentok/client';
 
 export enum ErrorNames {
   NETWORK_TEST_ERROR = 'NetworkTestError',

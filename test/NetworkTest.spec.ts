@@ -7,26 +7,23 @@ import {
 } from './credentials.json';
 import {
   NetworkTestError,
-  MissingOpenTokInstanceError,
-  MissingSessionCredentialsError,
-  IncompleteSessionCredentialsError,
   InvalidOnUpdateCallback,
 } from '../src/NetworkTest/errors';
 import { ConnectivityError } from '../src/NetworkTest/testConnectivity/errors';
 import NetworkTest, { ErrorNames } from '../src/NetworkTest';
 import { ConnectivityTestResults } from '../src/NetworkTest/testConnectivity/index';
 import { QualityTestError } from '../src/NetworkTest/testQuality/errors/index';
+import { expect } from 'jasmine-matchers';
 
 type CustomMatcher = jasmine.CustomMatcher;
 
-const malformedCredentials = { apiKey: '1234', invalidProp: '1234', token: '1234' };
 const badCredentials = { apiKey: '1234', sessionId: '1234', token: '1234' };
-const networkTest = new NetworkTest(OTClient, sessionCredentials);
-const networkTestWithOptions = new NetworkTest(OTClient, sessionCredentials, {
+const networkTest = new NetworkTest(sessionCredentials);
+const networkTestWithOptions = new NetworkTest(sessionCredentials, {
   audioOnly: true,
   timeout: 5000,
 });
-const badCredentialsNetworkTest = new NetworkTest(OTClient, badCredentials);
+const badCredentialsNetworkTest = new NetworkTest(badCredentials);
 const validOnUpdateCallback = (stats: OT.SubscriberStats) => stats;
 
 const customMatchers: jasmine.CustomMatcherFactories = {
@@ -65,20 +62,16 @@ describe('NetworkTest', () => {
   });
 
   it('its constructor requires OT and valid session credentials', () => {
-    expect(() => new NetworkTest(sessionCredentials)).toThrow(new MissingOpenTokInstanceError());
-    expect(() => new NetworkTest({}, sessionCredentials)).toThrow(new MissingOpenTokInstanceError());
-    expect(() => new NetworkTest(OTClient)).toThrow(new MissingSessionCredentialsError());
-    expect(() => new NetworkTest(OTClient, malformedCredentials)).toThrow(new IncompleteSessionCredentialsError());
-    expect(new NetworkTest(OTClient, sessionCredentials)).toBeInstanceOf(NetworkTest);
+    expect(new NetworkTest(sessionCredentials)).toBeInstanceOf(NetworkTest);
   });
 
   it('it contains a valid ErrorNames module', () => {
-    expect(ErrorNames.MISSING_OPENTOK_INSTANCE).toBe('MissingOpenTokInstanceError');
+    expect(ErrorNames.MISSING_OPENTOK_INSTANCE).to.be('MissingOpenTokInstanceError');
   });
 
   describe('Connectivity Test', () => {
     const testConnectFailure = (errorName, expectedType) => {
-      return new Promise((resolve) => {
+      return new Promise<void>((resolve) => {
         const realInitSession = OT.initSession;
         spyOn(OT, 'initSession').and.callFake((apiKey, sessionId) => {
           const session = realInitSession(apiKey, sessionId);
@@ -89,7 +82,7 @@ describe('NetworkTest', () => {
           });
           return session;
         });
-        const netTest = new NetworkTest(OT, sessionCredentials);
+        const netTest = new NetworkTest(sessionCredentials);
         netTest.testConnectivity()
           .then((results: ConnectivityTestResults) => {
             expect(results.failedTests).toBeInstanceOf(Array);

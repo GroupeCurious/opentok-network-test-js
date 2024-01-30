@@ -1,30 +1,43 @@
 import isBitrateSteadyState from './isBitrateSteadyState';
 import calculateThroughput from './calculateThroughput';
 import MOSState from './MOSState';
-import { OT } from '../../types/opentok';
-import { AV } from '../types/stats';
+import { AV, DetailedPublisherStats } from '../types/stats';
 import { getOr, last, nth } from '../../util';
 import { getPublisherStats }  from '../helpers/getPublisherRtcStatsReport';
+import type {
+  IncomingTrackStats,
+  OTError,
+  OutgoingTrackStats,
+  Publisher,
+  Subscriber,
+  SubscriberStats,
+} from '@opentok/client';
 
 export type StatsListener = (
-  error?: OT.OTError,
-  subStats?: OT.SubscriberStats,
-  pubStats?: OT.PublisherStats,
+  error?: OTError,
+  subStats?: SubscriberStats,
+  pubStats?: DetailedPublisherStats,
 ) => void;
 
-const getPacketsLost = (ts: OT.TrackStats): number => getOr(0, 'packetsLost', ts);
-const getPacketsReceived = (ts: OT.TrackStats): number => getOr(0, 'packetsReceived', ts);
-const getTotalPackets = (ts: OT.TrackStats): number => getPacketsLost(ts) + getPacketsReceived(ts);
-const calculateTotalPackets = (type: AV, current: OT.SubscriberStats, last: OT.SubscriberStats) =>
+const getPacketsLost = (
+  ts: IncomingTrackStats | OutgoingTrackStats
+): number => getOr(0, 'packetsLost', ts);
+const getPacketsReceived = (
+  ts: IncomingTrackStats | OutgoingTrackStats
+): number => getOr(0, 'packetsReceived', ts);
+const getTotalPackets = (
+  ts: IncomingTrackStats | OutgoingTrackStats
+): number => getPacketsLost(ts) + getPacketsReceived(ts);
+const calculateTotalPackets = (type: AV, current: SubscriberStats, last: SubscriberStats) =>
   getTotalPackets(current[type]) - getTotalPackets(last[type]);
-const calculateBitRate = (type: AV, current: OT.SubscriberStats, last: OT.SubscriberStats): number => {
+const calculateBitRate = (type: AV, current: SubscriberStats, last: SubscriberStats): number => {
   const interval = current.timestamp - last.timestamp;
   return current[type] && current[type].bytesReceived ?
     (8 * (current[type].bytesReceived - last[type].bytesReceived)) / (interval / 1000) : 0;
 };
 const DEFAULT_DELAY = 150; // expressed in ms
 
-function calculateVideoScore(subscriber: OT.Subscriber, stats: OT.SubscriberStats[]): number {
+function calculateVideoScore(subscriber: Subscriber, stats: SubscriberStats[]): number {
   const MIN_VIDEO_BITRATE = 30000;
   const targetBitrateForPixelCount = (pixelCount: number) => {
     // power function maps resolution to target bitrate, based on rumor config
@@ -54,8 +67,8 @@ function calculateVideoScore(subscriber: OT.Subscriber, stats: OT.SubscriberStat
 }
 
 function calculateAudioScore(
-  subscriber: OT.Subscriber, publisherStats: OT.PublisherStats | null,
-  stats: OT.SubscriberStats[]): number {
+  subscriber: Subscriber, publisherStats: DetailedPublisherStats | null,
+  stats: SubscriberStats[]): number {
   const getDelay = (): number => {
     // Return default delay until proper calculation
     return DEFAULT_DELAY;
@@ -114,26 +127,27 @@ function calculateAudioScore(
 
 export default function subscriberMOS(
   mosState: MOSState,
-  subscriber: OT.Subscriber,
-  publisher: OT.Publisher,
+  subscriber: Subscriber,
+  publisher: Publisher,
   getStatsListener: StatsListener,
   callback: (state: MOSState) => void,
 ) {
   mosState.intervalId = window.setInterval(() => {
     subscriber.getStats(
-      async (error?: OT.OTError, subscriberStats?: OT.SubscriberStats) => {
+      async (error?: OTError, subscriberStats?: SubscriberStats) => {
         if (!subscriberStats) {
           return null;
         }
 
         // Check for faulty stats
-        if (subscriberStats.audio.bytesReceived < 0 || getOr(1, 'video.bytesReceived', subscriberStats) < 0) {
+        if (subscriberStats.audio.bytesReceived < 0 || getOr<number>(1, 'video.bytesReceived', subscriberStats) < 0) {
           mosState.clearInterval();
           return callback(mosState);
         }
 
         // Get publisher stats and push to MOSState statsLog array
         const publisherStats = await getPublisherStats(publisher, mosState.getLastPublisherStats());
+        console.log(publisherStats);
 
         // Push subscriber stats to MOSState statsLog array
         subscriberStats && mosState.subscriberStatsLog.push(subscriberStats);
@@ -141,7 +155,7 @@ export default function subscriberMOS(
 
         // Call getStatsListener if it exists
         if (getStatsListener && typeof getStatsListener === 'function') {
-          getStatsListener(error, subscriberStats, publisherStats);
+          getStatsListener(error, subscriberStats, publisherStats ?? undefined);
         }
 
         // Calculate MOSState stats and push to appropriate logs

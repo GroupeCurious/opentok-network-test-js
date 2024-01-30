@@ -9,9 +9,10 @@ module.exports = {
   module: {
     rules: [{
       test: /\.tsx?$/,
-      use: [
-        { loader: 'ts-loader' },
-      ],
+      use: {
+        loader: 'ts-loader',
+      },
+      exclude: /node_modules/,
     }],
   },
   resolve: {
@@ -20,9 +21,10 @@ module.exports = {
   output: {
     filename: 'index.js',
     path: path.resolve(__dirname, 'dist/NetworkTest/'),
-    library: 'OpenTokNetworkConnectivity',
-    libraryTarget: 'umd',
-    umdNamedDefine: true
+    libraryTarget: 'module'
+  },
+  experiments: {
+    outputModule: true
   },
   optimization: {
     minimize: true,

@@ -1,15 +1,23 @@
 import getLatestSampleWindow from './getLatestSampleWindow';
 import calculateQualityStats from './calculateQualityStats';
 import getVideoQualityEvaluation from './getVideoQualityEvaluation';
-import { AV, AverageStats, AverageStatsBase, HasAudioVideo, SubscriberQualityStats } from '../types/stats';
+import {
+  AV,
+  AverageStats,
+  AverageStatsBase,
+  DetailedPublisherStats,
+  HasAudioVideo,
+  SubscriberQualityStats,
+} from '../types/stats';
 import config from './config';
 import MOSState from './MOSState';
-import { PublisherStats } from '../../types/opentok/publisher';
 import { getOr } from '../../util';
 
-function getAverageBitrateAndPlr(type: AV,
-                                 subscriberStatsList: SubscriberQualityStats[],
-                                 publisherStatsList: PublisherStats[]): AverageStats {
+function getAverageBitrateAndPlr(
+  type: AV,
+  subscriberStatsList: SubscriberQualityStats[],
+  publisherStatsList: DetailedPublisherStats[]
+): AverageStats {
 
   let sumBps = 0;
   let sumPlr = 0;

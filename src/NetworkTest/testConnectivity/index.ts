@@ -9,24 +9,33 @@
  * Connectivity Test Flow
  */
 import axios from 'axios';
-import * as Promise from 'promise';
 /* tslint:disable */
-import OTKAnalytics = require('opentok-solutions-logging');
+import OTKAnalytics from 'opentok-solutions-logging';
 /* tslint:enable */
 import {
   NetworkTestOptions,
 } from '../index';
-import { OT } from '../types/opentok';
 import * as e from './errors';
 import { OTErrorType, errorHasName } from '../errors/types';
 import { mapErrors, FailureCase } from './errors/mapping';
 import { getOr } from '../util';
+import {
+  type Publisher,
+  type Session,
+  type Subscriber,
+  type Device,
+  type OTError,
+  type PublisherProperties,
+  initSession,
+  getDevices,
+  initPublisher,
+} from '@opentok/client';
 
 type AV = 'audio' | 'video';
-type CreateLocalPublisherResults = { publisher: OT.Publisher };
-type PublishToSessionResults = { session: OT.Session } & CreateLocalPublisherResults;
-type SubscribeToSessionResults = { subscriber: OT.Subscriber } & PublishToSessionResults;
-type DeviceMap = { [deviceId: string]: OT.Device };
+type CreateLocalPublisherResults = { publisher: Publisher };
+type PublishToSessionResults = { session: Session } & CreateLocalPublisherResults;
+type SubscribeToSessionResults = { subscriber: Subscriber } & PublishToSessionResults;
+type DeviceMap = { [deviceId: string]: Device };
 type AvailableDevices = { audio: DeviceMap; video: DeviceMap };
 
 export type ConnectivityTestResults = {
@@ -38,8 +47,8 @@ export type ConnectivityTestResults = {
  * Disconnect from a session. Once disconnected, remove all session
  * event listeners and invoke the provided callback function.
  */
-function disconnectFromSession(session: OT.Session) {
-  return new Promise((resolve) => {
+function disconnectFromSession(session: Session) {
+  return new Promise<void>((resolve) => {
     session.on('sessionDisconnected', () => {
       session.off();
       resolve();
@@ -53,8 +62,8 @@ function disconnectFromSession(session: OT.Session) {
  * @param session
  * @param subscriber
  */
-function cleanSubscriber(session: OT.Session, subscriber: OT.Subscriber) {
-  return new Promise((resolve) => {
+function cleanSubscriber(session: Session, subscriber: Subscriber) {
+  return new Promise<void>((resolve) => {
     subscriber.on('destroyed', () => {
       resolve();
     });
@@ -65,8 +74,8 @@ function cleanSubscriber(session: OT.Session, subscriber: OT.Subscriber) {
   });
 }
 
-function cleanPublisher(publisher: OT.Publisher) {
-  return new Promise((resolve) => {
+function cleanPublisher(publisher: Publisher) {
+  return new Promise<void>((resolve) => {
     publisher.on('destroyed', () => {
       resolve();
     });
@@ -81,23 +90,17 @@ function cleanPublisher(publisher: OT.Publisher) {
  * Attempt to connect to the OpenTok sessionope
  */
 function connectToSession(
-  OT: OT.Client,
-  { apiKey, sessionId, token }: OT.SessionCredentials,
+  { apiKey, sessionId, token }: { apiKey: string; sessionId: string; token: string },
   options?: NetworkTestOptions,
-): Promise<OT.Session> {
+): Promise<Session> {
   return new Promise((resolve, reject) => {
-    let sessionOptions: OT.InitSessionOptions = {};
+    let sessionOptions: any = {};
     if (options && options.initSessionOptions) {
       sessionOptions = options.initSessionOptions;
     }
-    if (options && options.proxyServerUrl) {
-      // eslint-disable-next-line no-prototype-builtins
-      if (!OT.hasOwnProperty('setProxyUrl')) { // Fallback for OT.version < 2.17.4
-        sessionOptions.proxyUrl = options.proxyServerUrl;
-      }
-    }
-    const session = OT.initSession(apiKey, sessionId, sessionOptions);
-    session.connect(token, (error?: OT.OTError) => {
+
+    const session = initSession(apiKey, sessionId, sessionOptions);
+    session.connect(token, (error?: OTError) => {
       if (errorHasName(error, OTErrorType.OT_AUTHENTICATION_ERROR)) {
         reject(new e.ConnectToSessionTokenError());
       } else if (errorHasName(error, OTErrorType.OT_INVALID_SESSION_ID)) {
@@ -118,16 +121,16 @@ function connectToSession(
 /**
  * Ensure that audio and video devices are available
  */
-function validateDevices(OT: OT.Client): Promise<AvailableDevices> {
+function validateDevices(): Promise<AvailableDevices> {
   return new Promise((resolve, reject) => {
-    OT.getDevices((error?: OT.OTError, devices: OT.Device[] = []) => {
+    getDevices((error?: OTError, devices: Device[] = []) => {
 
       if (error) {
         reject(new e.FailedToObtainMediaDevices());
       } else {
 
         const availableDevices: AvailableDevices = devices.reduce(
-          (acc: AvailableDevices, device: OT.Device) => {
+          (acc: AvailableDevices, device: Device) => {
             const type: AV = device.kind === 'audioInput' ? 'audio' : 'video';
             return { ...acc, [type]: { ...acc[type], [device.deviceId]: device } };
           },
@@ -148,11 +151,10 @@ function validateDevices(OT: OT.Client): Promise<AvailableDevices> {
  * Create a local publisher object using any specified device options
  */
 function checkCreateLocalPublisher(
-  OT: OT.Client,
   options?: NetworkTestOptions,
 ): Promise<CreateLocalPublisherResults> {
   return new Promise((resolve, reject) => {
-    validateDevices(OT)
+    validateDevices()
       .then((availableDevices: AvailableDevices) => {
         const publisherDiv = document.createElement('div');
         publisherDiv.style.position = 'fixed';
@@ -161,7 +163,7 @@ function checkCreateLocalPublisher(
         publisherDiv.style.height = '1px';
         publisherDiv.style.opacity = '0.01';
         document.body.appendChild(publisherDiv);
-        const publisherOptions: OT.PublisherProperties = {
+        const publisherOptions: PublisherProperties = {
           width: '100%',
           height: '100%',
           insertMode: 'append',
@@ -186,7 +188,7 @@ function checkCreateLocalPublisher(
         if (options && options.scalableVideo) {
           publisherOptions.scalableVideo = options.scalableVideo;
         }
-        const publisher = OT.initPublisher(publisherDiv, publisherOptions, (error?: OT.OTError) => {
+        const publisher = initPublisher(publisherDiv, publisherOptions, (error?: OTError) => {
           if (!error) {
             resolve({ publisher });
           } else {
@@ -205,7 +207,7 @@ function checkCreateLocalPublisher(
  * Attempt to publish to the session
  */
 function checkPublishToSession(
-  OT: OT.Client, session: OT.Session,
+  session: Session,
   options?: NetworkTestOptions,
 ): Promise<PublishToSessionResults> {
   return new Promise((resolve, reject) => {
@@ -214,9 +216,9 @@ function checkPublishToSession(
         reject(rejectError);
       });
     };
-    checkCreateLocalPublisher(OT, options)
+    checkCreateLocalPublisher(options)
       .then(({ publisher }: CreateLocalPublisherResults) => {
-        session.publish(publisher, (error?: OT.OTError) => {
+        session.publish(publisher, (error?: OTError) => {
           if (error) {
             if (errorHasName(error, OTErrorType.NOT_CONNECTED)) {
               disconnectAndReject(new e.PublishToSessionNotConnectedError());
@@ -253,7 +255,7 @@ function checkSubscribeToSession({ session, publisher }: PublishToSessionResults
       disconnectAndReject(new e.SubscribeToSessionError());
     } else {
       const subscriberDiv = document.createElement('div');
-      const subscriber = session.subscribe(publisher.stream, subscriberDiv, config, (error?: OT.OTError) => {
+      const subscriber = session.subscribe(publisher.stream, subscriberDiv, config, (error?: OTError) => {
         if (error) {
           disconnectAndReject(new e.SubscribeToSessionError());
         } else {
@@ -267,7 +269,7 @@ function checkSubscribeToSession({ session, publisher }: PublishToSessionResults
 /**
  * Attempt to connect to the tokbox client logging server
  */
-function checkLoggingServer(OT: OT.Client, options?: NetworkTestOptions, input?: SubscribeToSessionResults):
+function checkLoggingServer(options?: NetworkTestOptions, input?: SubscribeToSessionResults):
 Promise<SubscribeToSessionResults> {
   return new Promise((resolve, reject) => {
     const loggingUrl = `${getOr('', 'properties.loggingURL', OT)}/logging/ClientEvent`; // https://hlg.tokbox.com/prod
@@ -276,7 +278,7 @@ Promise<SubscribeToSessionResults> {
     const handleError = () => reject(new e.LoggingServerConnectionError());
 
     axios.post(url)
-      .then(response => response.status === 200 ? resolve(input) : handleError())
+      .then(response => response.status === 200 && input ? resolve(input) : handleError())
       .catch(handleError);
 
   });
@@ -286,8 +288,7 @@ Promise<SubscribeToSessionResults> {
  * This method checks to see if the client can connect to TokBox servers required for using OpenTok
  */
 export function testConnectivity(
-  OT: OT.Client,
-  credentials: OT.SessionCredentials,
+  credentials: { apiKey: string; sessionId: string; token: string },
   otLogging: OTKAnalytics,
   options?: NetworkTestOptions,
 ): Promise<ConnectivityTestResults> {
@@ -334,16 +335,16 @@ export function testConnectivity(
       if (error.name === 'LoggingServerConnectionError') {
         handleResults(error);
       } else {
-        checkLoggingServer(OT, options)
+        checkLoggingServer(options)
           .then(() => handleResults(error))
           .catch((loggingError: e.LoggingServerConnectionError) => handleResults(error, loggingError));
       }
     };
 
-    connectToSession(OT, credentials, options)
-      .then((session: OT.Session) => checkPublishToSession(OT, session, options))
+    connectToSession(credentials, options)
+      .then((session: Session) => checkPublishToSession(session, options))
       .then(checkSubscribeToSession)
-      .then((results: SubscribeToSessionResults) => checkLoggingServer(OT, options, results))
+      .then((results: SubscribeToSessionResults) => checkLoggingServer(options, results))
       .then(onSuccess)
       .catch(onFailure);
   });

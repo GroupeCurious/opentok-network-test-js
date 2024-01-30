@@ -19,6 +19,7 @@ module.exports = {
         "plugin:@typescript-eslint/recommended"
     ],
     "root": true,
+    "ignorePatterns": ["webpack.config.js", "dist", "node_modules", ".eslintrc.js"],
     "rules": {
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/ban-types": "off",

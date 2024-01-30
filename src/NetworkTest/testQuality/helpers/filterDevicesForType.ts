@@ -1,16 +1,15 @@
-import * as Promise from 'promise';
 import * as e from '../../testQuality/errors';
-import { OT } from '../../types/opentok';
+import { type Device, getDevices } from '@opentok/client';
 
 export type InputDeviceType = 'audioInput' | 'videoInput';
 
-export default function filterDevicesForType(OT: OT.Client, type: InputDeviceType) {
-  return new Promise((resolve, reject) => {
-    OT.getDevices((error?: OT.OTError, devices: OT.Device[] = []) => {
+export default function filterDevicesForType(type: InputDeviceType) {
+  return new Promise<Device[]>((resolve, reject) => {
+    getDevices((error?: OT.OTError, devices: Device[] = []) => {
       if (error) {
         reject(new e.FailedToObtainMediaDevices());
       } else {
-        const deviceList = devices.filter((device: OT.Device) => device.kind === type);
+        const deviceList = devices.filter((device: Device) => device.kind === type);
         if (deviceList.length !== 0) {
           resolve(deviceList);
         } else if (type === 'videoInput') {

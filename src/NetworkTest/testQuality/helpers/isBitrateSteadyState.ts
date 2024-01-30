@@ -1,8 +1,8 @@
 import getLatestSampleWindow from './getLatestSampleWindow';
 import config from './config';
-import { OT } from '../../types/opentok';
+import { DetailedPublisherStats } from '../types/stats';
 
-export default function isBitrateSteadyState(statsList: OT.PublisherStats[]): boolean {
+export default function isBitrateSteadyState(statsList: DetailedPublisherStats[]): boolean {
   const latestSamples = getLatestSampleWindow(statsList);
   let isSteadyState = true;
 
